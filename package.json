@@ -10,7 +10,9 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onView:web-depcruiser.fileExplorer",
+    "onCommand:web-depcruiser.showOptions",
+    "onCommand:web-depcruiser.refreshFileExplorer"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -24,8 +26,17 @@
         "title": "파일 트리 새로고침"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "web-depcruiser",
+          "title": "Web DepCruiser",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
     "views": {
-      "explorer": [
+      "web-depcruiser": [
         {
           "id": "web-depcruiser.fileExplorer",
           "name": "Web DepCruiser"
