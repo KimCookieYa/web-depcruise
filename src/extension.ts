@@ -112,7 +112,11 @@ async function showOptions(filePath: string) {
         canPickMany: false,
         ignoreFocusOut: true
     });
-    const mode = selectedMode?.label || 'reaches';
+    // 선택 취소 시 종료
+    if (!selectedMode) {
+        return;
+    }
+    const mode = selectedMode.label;
 
     const typeItems: vscode.QuickPickItem[] = [
         { label: 'mmd', description: 'Mermaid 형식 (기본값)' },
@@ -124,7 +128,11 @@ async function showOptions(filePath: string) {
         canPickMany: false,
         ignoreFocusOut: true
     });
-    const type = selectedType?.label || 'mmd';
+    // 선택 취소 시 종료
+    if (!selectedType) {
+        return;
+    }
+    const type = selectedType.label;
 
     await generateGraph(filePath, mode, type);
 }
@@ -216,13 +224,59 @@ function generateGraph(filePath: string, mode: string, type: string) {
             fs.unlinkSync(dotFile);
         }
 
-        const outputUri = vscode.Uri.file(outputFile);
-        // 결과 표시
-        if (ext === 'mmd') {
-            vscode.workspace.openTextDocument(outputUri).then((doc: vscode.TextDocument) => vscode.window.showTextDocument(doc));
-        } else {
-            vscode.commands.executeCommand('vscode.open', outputUri);
-        }
+        // WebView로 그래프 표시
+        showGraphInWebview(outputFile, ext);
         vscode.window.showInformationMessage(`그래프 생성 완료: ${outputFile}`);
     });
+}
+
+/**
+ * WebView를 통해 생성된 그래프를 표시하고 다운로드 링크를 제공합니다.
+ */
+function showGraphInWebview(outputFile: string, ext: string) {
+    const panel = vscode.window.createWebviewPanel(
+        'depcruisePreview',
+        'Dependency Graph',
+        vscode.ViewColumn.Beside,
+        { enableScripts: true }
+    );
+    const webview = panel.webview;
+    let body = '';
+    if (ext === 'mmd') {
+        const mmd = fs.readFileSync(outputFile, 'utf-8');
+        body = `<div class="mermaid">${mmd}</div>`;
+    } else if (ext === 'svg') {
+        const svg = fs.readFileSync(outputFile, 'utf-8');
+        body = svg;
+    } else if (ext === 'png') {
+        const imgData = fs.readFileSync(outputFile).toString('base64');
+        body = `<img src="data:image/png;base64,${imgData}" />`;
+    }
+    // 다운로드 링크 생성
+    const fileName = path.basename(outputFile);
+    const downloadData = ext === 'png'
+        ? fs.readFileSync(outputFile).toString('base64')
+        : fs.readFileSync(outputFile, 'utf-8');
+    const dataUri = ext === 'png'
+        ? `data:image/png;base64,${downloadData}`
+        : ext === 'svg'
+            ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(downloadData)}`
+            : `data:text/plain;charset=utf-8,${encodeURIComponent(downloadData)}`;
+    const downloadLink = `<a href="${dataUri}" download="${fileName}">Download ${fileName}</a>`;
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true });</script>
+  <style>body { padding: 10px; }</style>
+</head>
+<body>
+  ${body}
+  <hr />
+  ${downloadLink}
+</body>
+</html>`;
+    panel.webview.html = html;
 }
