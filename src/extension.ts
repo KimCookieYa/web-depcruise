@@ -221,6 +221,27 @@ function showGraphInWebviewData(data: Buffer, ext: string) {
         vscode.ViewColumn.Beside,
         { enableScripts: true }
     );
+    // 메시지 수신 리스너: 다운로드 요청 처리
+    panel.webview.onDidReceiveMessage(async message => {
+        if (message.command === 'save') {
+            // 파일 저장 위치 선택
+            const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(path.join(
+                    vscode.workspace.workspaceFolders?.[0].uri.fsPath || '',
+                    message.fileName
+                ))
+            });
+            if (!uri) {
+                return;
+            }
+            // 데이터 Buffer 생성
+            const buffer = message.ext === 'png'
+                ? Buffer.from(message.data, 'base64')
+                : Buffer.from(decodeURIComponent(message.data), 'utf-8');
+            await vscode.workspace.fs.writeFile(uri, buffer);
+            vscode.window.showInformationMessage(`Saved to ${uri.fsPath}`);
+        }
+    });
     const webview = panel.webview;
     // 콘텐츠 처리
     let body = '';
@@ -232,14 +253,18 @@ function showGraphInWebviewData(data: Buffer, ext: string) {
         const base64 = data.toString('base64');
         body = `<img src="data:image/png;base64,${base64}" />`;
     }
-    // 다운로드 링크 생성
-    const fileName = `dependency.${ext}`;
-    const dataUri = ext === 'png'
-        ? `data:image/png;base64,${data.toString('base64')}`
-        : ext === 'svg'
-            ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(data.toString('utf-8'))}`
-            : `data:text/plain;charset=utf-8,${encodeURIComponent(data.toString('utf-8'))}`;
-    const downloadLink = `<a href="${dataUri}" download="${fileName}">Download ${fileName}</a>`;
+    // 다운로드 버튼 (메시지 포스트)
+    const downloadData = ext === 'png'
+        ? data.toString('base64')
+        : encodeURIComponent(data.toString('utf-8'));
+    const downloadLink = `
+        <button id="download">Download dependency.${ext}</button>
+        <script>
+            const vscodeApi = acquireVsCodeApi();
+            document.getElementById('download').addEventListener('click', () => {
+                vscodeApi.postMessage({ command: 'save', data: '${downloadData}', ext: '${ext}', fileName: 'dependency.${ext}' });
+            });
+        </script>`;
     // HTML 렌더링
     panel.webview.html = `<!DOCTYPE html>
 <html lang="en">
