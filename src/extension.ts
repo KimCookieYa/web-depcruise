@@ -103,37 +103,43 @@ class FileExplorerProvider implements vscode.TreeDataProvider<FileNode> {
  * QuickPick을 통해 모드 및 타입을 선택하고 그래프를 생성합니다.
  */
 async function showOptions(filePath: string) {
-    const modeItems: vscode.QuickPickItem[] = [
-        { label: 'reaches', description: '이 파일에 의존하는 모듈 (영향을 미침)' },
-        { label: 'deps', description: '이 파일이 의존하는 모듈' }
-    ];
-    const selectedMode = await vscode.window.showQuickPick(modeItems, {
-        placeHolder: '의존성 모드를 선택하세요',
-        canPickMany: false,
-        ignoreFocusOut: true
-    });
-    // 선택 취소 시 종료
-    if (!selectedMode) {
-        return;
+    const config = vscode.workspace.getConfiguration('webDepcruiser');
+    const quickPickEnabled = config.get<boolean>('quickPick.enabled', true);
+    // 모드 결정
+    let mode = config.get<string>('defaultMode', 'reaches')!;
+    if (quickPickEnabled) {
+        const modeItems: vscode.QuickPickItem[] = [
+            { label: 'reaches', description: '이 파일에 의존하는 모듈 (영향을 미침)' },
+            { label: 'deps', description: '이 파일이 의존하는 모듈' }
+        ];
+        const selectedMode = await vscode.window.showQuickPick(modeItems, {
+            placeHolder: '의존성 모드를 선택하세요',
+            canPickMany: false,
+            ignoreFocusOut: true
+        });
+        if (!selectedMode) {
+            return;
+        }
+        mode = selectedMode.label;
     }
-    const mode = selectedMode.label;
-
-    const typeItems: vscode.QuickPickItem[] = [
-        { label: 'mmd', description: 'Mermaid 형식 (기본값)' },
-        { label: 'svg', description: 'SVG 이미지' },
-        { label: 'png', description: 'PNG 이미지' }
-    ];
-    const selectedType = await vscode.window.showQuickPick(typeItems, {
-        placeHolder: '출력 형식을 선택하세요',
-        canPickMany: false,
-        ignoreFocusOut: true
-    });
-    // 선택 취소 시 종료
-    if (!selectedType) {
-        return;
+    // 형식 결정
+    let type = config.get<string>('defaultFormat', 'mmd')!;
+    if (quickPickEnabled) {
+        const typeItems: vscode.QuickPickItem[] = [
+            { label: 'mmd', description: 'Mermaid 형식 (기본값)' },
+            { label: 'svg', description: 'SVG 이미지' },
+            { label: 'png', description: 'PNG 이미지' }
+        ];
+        const selectedType = await vscode.window.showQuickPick(typeItems, {
+            placeHolder: '출력 형식을 선택하세요',
+            canPickMany: false,
+            ignoreFocusOut: true
+        });
+        if (!selectedType) {
+            return;
+        }
+        type = selectedType.label;
     }
-    const type = selectedType.label;
-
     await generateGraph(filePath, mode, type);
 }
 
@@ -146,27 +152,6 @@ function generateGraph(filePath: string, mode: string, type: string) {
         vscode.window.showErrorMessage('워크스페이스 루트를 찾을 수 없습니다.');
         return;
     }
-
-    const outputDir = path.join(workspaceRoot, '.cruise');
-    if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir);
-    }
-
-    // 출력 타입 및 확장자 결정
-    let actualType = type;
-    let ext = type;
-    if (type === 'mmd') {
-        actualType = 'mermaid';
-        ext = 'mmd';
-    } else if (!['svg', 'png', 'dot'].includes(type)) {
-        actualType = 'mermaid';
-        ext = 'mmd';
-    }
-
-    const needsDot = type === 'svg' || type === 'png';
-    const baseName = path.basename(filePath, path.extname(filePath));
-    const outputFile = path.join(outputDir, `dependency-${mode}-${baseName}.${ext}`);
-    const dotFile = needsDot ? path.join(outputDir, `dependency-${mode}-${baseName}.dot`) : '';
 
     // 설정 파일 경로 결정 (.option/dependency-cruiser.js 기본, 프로젝트 루트 설정 파일이 있으면 우선 사용)
     const defaultConfigPath = path.join(workspaceRoot, '.option', 'dependency-cruiser.js');
@@ -195,45 +180,41 @@ function generateGraph(filePath: string, mode: string, type: string) {
     // node_modules 포함 옵션 설정 (현재 기본 포함)
     const nodeModulesOptions = '--do-not-follow node_modules --collapse "^(node_modules|lib)/[^/]+"';
 
-    // 명령어 생성
+    // 출력 타입 및 확장자 결정
+    const ext = type;
+    const actualType = type === 'mmd' ? 'mermaid' : ['svg','png','dot'].includes(type) ? type : 'mermaid';
+    const needsDot = type === 'svg' || type === 'png';
+
+    // 명령어 생성 (stdout으로 결과 받음)
     let command = '';
     if (mode === 'deps') {
-        if (needsDot) {
-            command = `npx depcruise ${configOption} "${targetPath}" ${nodeModulesOptions} --output-type dot > "${dotFile}" && dot -T${type} "${dotFile}" > "${outputFile}"`;
-        } else {
-            command = `npx depcruise ${configOption} "${targetPath}" ${nodeModulesOptions} --output-type ${actualType} > "${outputFile}"`;
-        }
+        command = needsDot
+            ? `npx depcruise ${configOption} "${targetPath}" ${nodeModulesOptions} --output-type dot | dot -T${type}`
+            : `npx depcruise ${configOption} "${targetPath}" ${nodeModulesOptions} --output-type ${actualType}`;
     } else {
-        if (needsDot) {
-            command = `npx depcruise ${configOption} src --reaches "${targetPath}" ${nodeModulesOptions} --output-type dot > "${dotFile}" && dot -T${type} "${dotFile}" > "${outputFile}"`;
-        } else {
-            command = `npx depcruise ${configOption} src --reaches "${targetPath}" ${nodeModulesOptions} --output-type ${actualType} > "${outputFile}"`;
-        }
+        command = needsDot
+            ? `npx depcruise ${configOption} src --reaches "${targetPath}" ${nodeModulesOptions} --output-type dot | dot -T${type}`
+            : `npx depcruise ${configOption} src --reaches "${targetPath}" ${nodeModulesOptions} --output-type ${actualType}`;
     }
 
 	console.log(command);
 
     vscode.window.showInformationMessage(`그래프 생성 중: mode=${mode}, type=${type}`);
-    exec(command, { cwd: workspaceRoot }, (error: ExecException | null, stdout: string, stderr: string) => {
+    // 명령 실행: stdout으로 그래프 데이터 수신
+    exec(command, { cwd: workspaceRoot, encoding: 'buffer', maxBuffer: 10 * 1024 * 1024 }, (error: ExecException | null, stdout: Buffer, stderr: Buffer) => {
         if (error) {
-            vscode.window.showErrorMessage(`그래프 생성 오류: ${stderr || error.message}`);
+            vscode.window.showErrorMessage(`그래프 생성 오류: ${stderr.toString() || error.message}`);
             return;
         }
-        // 중간 dot 파일 삭제
-        if (needsDot && dotFile && fs.existsSync(dotFile)) {
-            fs.unlinkSync(dotFile);
-        }
-
-        // WebView로 그래프 표시
-        showGraphInWebview(outputFile, ext);
-        vscode.window.showInformationMessage(`그래프 생성 완료: ${outputFile}`);
+        // WebView로 그래프 표시 (stdout 기반)
+        showGraphInWebviewData(stdout, ext);
     });
 }
 
 /**
- * WebView를 통해 생성된 그래프를 표시하고 다운로드 링크를 제공합니다.
+ * WebView로 stdout 기반 그래프 데이터를 표시 및 다운로드 링크 제공
  */
-function showGraphInWebview(outputFile: string, ext: string) {
+function showGraphInWebviewData(data: Buffer, ext: string) {
     const panel = vscode.window.createWebviewPanel(
         'depcruisePreview',
         'Dependency Graph',
@@ -241,30 +222,26 @@ function showGraphInWebview(outputFile: string, ext: string) {
         { enableScripts: true }
     );
     const webview = panel.webview;
+    // 콘텐츠 처리
     let body = '';
     if (ext === 'mmd') {
-        const mmd = fs.readFileSync(outputFile, 'utf-8');
-        body = `<div class="mermaid">${mmd}</div>`;
+        body = `<div class="mermaid">${data.toString('utf-8')}</div>`;
     } else if (ext === 'svg') {
-        const svg = fs.readFileSync(outputFile, 'utf-8');
-        body = svg;
+        body = data.toString('utf-8');
     } else if (ext === 'png') {
-        const imgData = fs.readFileSync(outputFile).toString('base64');
-        body = `<img src="data:image/png;base64,${imgData}" />`;
+        const base64 = data.toString('base64');
+        body = `<img src="data:image/png;base64,${base64}" />`;
     }
     // 다운로드 링크 생성
-    const fileName = path.basename(outputFile);
-    const downloadData = ext === 'png'
-        ? fs.readFileSync(outputFile).toString('base64')
-        : fs.readFileSync(outputFile, 'utf-8');
+    const fileName = `dependency.${ext}`;
     const dataUri = ext === 'png'
-        ? `data:image/png;base64,${downloadData}`
+        ? `data:image/png;base64,${data.toString('base64')}`
         : ext === 'svg'
-            ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(downloadData)}`
-            : `data:text/plain;charset=utf-8,${encodeURIComponent(downloadData)}`;
+            ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(data.toString('utf-8'))}`
+            : `data:text/plain;charset=utf-8,${encodeURIComponent(data.toString('utf-8'))}`;
     const downloadLink = `<a href="${dataUri}" download="${fileName}">Download ${fileName}</a>`;
-
-    const html = `<!DOCTYPE html>
+    // HTML 렌더링
+    panel.webview.html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -278,5 +255,4 @@ function showGraphInWebview(outputFile: string, ext: string) {
   ${downloadLink}
 </body>
 </html>`;
-    panel.webview.html = html;
 }

@@ -42,6 +42,48 @@
           "name": "Web DepCruiser"
         }
       ]
+    },
+    "configuration": {
+      "title": "Web DepCruiser",
+      "properties": {
+        "webDepcruiser.quickPick.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show QuickPick dialogs for selecting mode and format."
+        },
+        "webDepcruiser.defaultMode": {
+          "type": "string",
+          "enum": ["reaches", "deps"],
+          "default": "reaches",
+          "description": "Default dependency mode when QuickPick is disabled."
+        },
+        "webDepcruiser.defaultFormat": {
+          "type": "string",
+          "enum": ["mmd", "svg", "png"],
+          "default": "mmd",
+          "description": "Default output format when QuickPick is disabled."
+        },
+        "webDepcruiser.includeNodeModules": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include node_modules folder in the dependency graph."
+        },
+        "webDepcruiser.outputDirectory": {
+          "type": "string",
+          "default": ".cruise",
+          "description": "Directory where generated graph files will be stored."
+        },
+        "webDepcruiser.collapsePattern": {
+          "type": "string",
+          "default": "^(node_modules|lib)/[^/]+",
+          "description": "Pattern used to collapse module paths."
+        },
+        "webDepcruiser.dotPath": {
+          "type": "string",
+          "default": "dot",
+          "description": "Path to the Graphviz dot executable."
+        }
+      }
     }
   },
   "scripts": {
