@@ -10,9 +10,12 @@
     "Other"
   ],
   "activationEvents": [
+    "onView:web-depcruiser.commands",
     "onView:web-depcruiser.fileExplorer",
     "onCommand:web-depcruiser.showOptions",
-    "onCommand:web-depcruiser.refreshFileExplorer"
+    "onCommand:web-depcruiser.refreshFileExplorer",
+    "onCommand:web-depcruiser.showEntireGraph",
+    "onCommand:web-depcruiser.openSettings"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -24,6 +27,14 @@
       {
         "command": "web-depcruiser.refreshFileExplorer",
         "title": "파일 트리 새로고침"
+      },
+      {
+        "command": "web-depcruiser.showEntireGraph",
+        "title": "프로젝트 전체 의존성 그래프 생성"
+      },
+      {
+        "command": "web-depcruiser.openSettings",
+        "title": "Web DepCruiser 설정 열기"
       }
     ],
     "viewsContainers": {
@@ -37,6 +48,10 @@
     },
     "views": {
       "web-depcruiser": [
+        {
+          "id": "web-depcruiser.commands",
+          "name": "명령어"
+        },
         {
           "id": "web-depcruiser.fileExplorer",
           "name": "Web DepCruiser"
@@ -53,13 +68,20 @@
         },
         "webDepcruiser.defaultMode": {
           "type": "string",
-          "enum": ["reaches", "deps"],
+          "enum": [
+            "reaches",
+            "deps"
+          ],
           "default": "reaches",
           "description": "Default dependency mode when QuickPick is disabled."
         },
         "webDepcruiser.defaultFormat": {
           "type": "string",
-          "enum": ["mmd", "svg", "png"],
+          "enum": [
+            "mmd",
+            "svg",
+            "png"
+          ],
           "default": "mmd",
           "description": "Default output format when QuickPick is disabled."
         },
@@ -77,6 +99,11 @@
           "type": "string",
           "default": "^(node_modules|lib)/[^/]+",
           "description": "Pattern used to collapse module paths."
+        },
+        "webDepcruiser.sourceDirectory": {
+          "type": "string",
+          "default": "src",
+          "description": "의존성 분석을 수행할 디렉토리 이름 (기본: src, 프로젝트 루트는 '.' 입력)"
         },
         "webDepcruiser.dotPath": {
           "type": "string",
@@ -101,17 +128,20 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.99.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
+    "@types/vscode": "^1.99.0",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
-    "eslint": "^9.23.0",
-    "esbuild": "^0.25.1",
-    "npm-run-all": "^4.1.5",
-    "typescript": "^5.8.2",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "esbuild": "^0.25.1",
+    "eslint": "^9.23.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.8.2"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
+  "dependencies": {
+    "dependency-cruiser": "^16.10.1"
+  }
 }

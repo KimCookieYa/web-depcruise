@@ -11,9 +11,9 @@ export async function generateGraph(filePath: string, mode: string, format: stri
         return;
     }
 
-    // 설정 파일 경로 결정
-    const defaultConfigPath = path.join(workspaceRoot, '.option', 'dependency-cruiser.js');
-    let configPath = defaultConfigPath;
+    // 설정 파일 경로 결정 (프로젝트 내 설정이 없으면 확장 기능 내 .option 사용)
+    const extensionDefaultConfigPath = path.join(__dirname, '..', '.option', '.dependency-cruiser.js');
+    let configPath = extensionDefaultConfigPath;
     const customConfigCandidates = [
         path.join(workspaceRoot, '.dependency-cruiser.js'),
         path.join(workspaceRoot, '.dependency-cruiser.json'),
@@ -41,11 +41,14 @@ export async function generateGraph(filePath: string, mode: string, format: stri
     const nodeModulesOptions = includeNodeModules
         ? `--do-not-follow node_modules --collapse "${collapsePattern}"`
         : `--exclude "${collapsePattern}"`;
+    // 사용자 정의 소스 디렉토리
+    const sourceDir = config.get<string>('sourceDirectory', 'src')!;
 
     try {
         const data = await DepcruiseService.run(
             workspaceRoot,
             configOption,
+            sourceDir,
             targetPath,
             nodeModulesOptions,
             mode,
