@@ -34,8 +34,8 @@ async function main() {
 		sourcemap: !production,
 		sourcesContent: false,
 		platform: 'node',
-		outfile: 'dist/extension.js',
-		external: ['vscode'],
+		outfile: 'dist/extension.cjs',
+		external: ['vscode', 'dependency-cruiser'],
 		logLevel: 'silent',
 		plugins: [
 			/* add to the end of plugins array */

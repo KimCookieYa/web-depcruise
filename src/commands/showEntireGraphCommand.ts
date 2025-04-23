@@ -11,7 +11,7 @@ export async function showEntireGraph(): Promise<void> {
         return;
     }
     const config = vscode.workspace.getConfiguration('webDepcruiser');
-    const format = config.get<string>('defaultFormat', 'mmd')!;
+    const format = config.get<'mmd' | 'svg' | 'png'>('defaultFormat', 'mmd')!;
     try {
         await generateGraph(workspaceRoot, 'deps', format);
     } catch (err: any) {

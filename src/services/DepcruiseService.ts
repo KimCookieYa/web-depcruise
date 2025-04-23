@@ -1,57 +1,52 @@
 import { exec, ExecException } from 'child_process';
 import * as path from 'path';
+// CLI 실행을 위한 service
 
 export class DepcruiseService {
     /**
-     * depcruise 및 dot 파이프 실행 후 stdout Buffer 반환
+     * npx depcruise CLI를 호출해 의존성 그래프를 생성하고 Buffer를 반환합니다.
      */
     static run(
         cwd: string,
-        configOption: string,
+        configPath: string,
         sourceDir: string,
         targetPath: string,
-        nodeModulesOptions: string,
-        mode: string,
-        format: string
+        includeNodeModules: boolean,
+        collapsePattern: string,
+        mode: 'deps' | 'reaches',
+        format: 'mmd' | 'svg' | 'png',
+        dotPath: string
     ): Promise<Buffer> {
-        const actualType = format === 'mmd' ? 'mermaid' : ['svg','png','dot'].includes(format) ? format : 'mermaid';
-        const needsDot = format === 'svg' || format === 'png';
-        const sourceDirPath = sourceDir === '.' ? '.' : `"${sourceDir}"`;
-        // targetPath를 workspaceRoot 기준 상대경로로 사용
-        const relativeTarget = path.isAbsolute(targetPath)
-            ? path.relative(cwd, targetPath).replace(/\\/g, '/')
-            : targetPath;
-        // reaches 옵션용 정규식: 경로 전체 매칭
-        const regex = `^${relativeTarget.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`;
-        let cmd: string;
-        if (mode === 'deps') {
-            cmd = needsDot
-                ? `npx depcruise ${configOption} "${targetPath}" ${nodeModulesOptions} --output-type dot | dot -T${format}`
-                : `npx depcruise ${configOption} "${targetPath}" ${nodeModulesOptions} --output-type ${actualType}`;
-        } else {
-            // reaches 모드: scanning path 먼저, --reaches 옵션 적용 
-            cmd = needsDot
-                ? `npx depcruise . ${configOption} --reaches ${regex} ${nodeModulesOptions} --output-type dot | dot -T${format}`
-                : `npx depcruise . ${configOption} --reaches ${regex} ${nodeModulesOptions} --output-type ${actualType}`;
+        // config 옵션
+        const configOption = `--config "${configPath}"`;
+        // node_modules follow/collapse or exclude 옵션
+        const nmOpt = includeNodeModules
+            ? `--do-not-follow node_modules --collapse "${collapsePattern}"`
+            : `--exclude "${collapsePattern}"`;
+        // reaches 옵션
+        const reachesOpt = mode === 'reaches'
+            ? `--reaches "${targetPath.replace(/\\/g, '/')}"`
+            : '';
+        // entry 인자
+        const entryArg = mode === 'deps' ? `"${targetPath}"` : '.';
+        // output type
+        const outType = format === 'mmd' ? 'mermaid' : format;
+        // CLI 커맨드 빌드
+        let cmd = `npx --yes --package dependency-cruiser depcruise ${entryArg} ${configOption} ${nmOpt} ${reachesOpt} --output-type ${outType}`;
+        // dot 처리
+        if (format === 'svg' || format === 'png') {
+            cmd += ` | "${dotPath}" -T${format}`;
         }
         console.log(cmd);
         return new Promise<Buffer>((resolve, reject) => {
-            exec(
-                cmd,
-                { cwd },
-                (error: ExecException | null, stdout: Buffer | string, stderr: Buffer | string) => {
-                    if (error) {
-                        // stderr가 문자열 또는 Buffer일 수 있으므로 메시지를 추출
-                        console.log(error);
-                        const msg = typeof stderr === 'string' ? stderr : stderr.toString();
-                        reject(new Error(msg || error.message));
-                    } else {
-                        // stdout이 문자열인 경우 Buffer로 변환
-                        const buffer = typeof stdout === 'string' ? Buffer.from(stdout) : stdout;
-                        resolve(buffer);
-                    }
+            exec(cmd, { cwd }, (err: ExecException | null, stdout, stderr) => {
+                if (err) {
+                    const msg = stderr?.toString() || err.message;
+                    reject(new Error(msg));
+                } else {
+                    resolve(Buffer.from(stdout.toString()));
                 }
-            );
+            });
         });
     }
 }

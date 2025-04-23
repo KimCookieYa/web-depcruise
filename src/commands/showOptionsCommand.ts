@@ -9,7 +9,7 @@ export async function showOptions(filePath: string): Promise<void> {
     const quickPickEnabled = config.get<boolean>('quickPick.enabled', true);
 
     // Dependency mode 결정
-    let mode = config.get<string>('defaultMode', 'reaches')!;
+    let mode = config.get<'reaches' | 'deps'>('defaultMode', 'reaches')!;
     if (quickPickEnabled) {
         const modeItems: vscode.QuickPickItem[] = [
             { label: 'reaches', description: '이 파일에 의존하는 모듈 (영향을 미침)' },
@@ -23,11 +23,11 @@ export async function showOptions(filePath: string): Promise<void> {
         if (!selected) {
             return; // 취소
         }
-        mode = selected.label;
+        mode = selected.label as 'reaches' | 'deps';
     }
 
     // Output format 결정
-    let format = config.get<string>('defaultFormat', 'mmd')!;
+    let format = config.get<'mmd' | 'svg' | 'png'>('defaultFormat', 'mmd')!;
     if (quickPickEnabled) {
         const typeItems: vscode.QuickPickItem[] = [
             { label: 'mmd', description: 'Mermaid 형식 (기본값)' },
@@ -42,7 +42,7 @@ export async function showOptions(filePath: string): Promise<void> {
         if (!selected) {
             return; // 취소
         }
-        format = selected.label;
+        format = selected.label as 'mmd' | 'svg' | 'png';
     }
 
     // 그래프 생성 실행
